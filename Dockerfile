@@ -1,28 +1,18 @@
-FROM node:20-alpine
+# Build do front
+FROM node:20 AS build
 
-# Instala dependências do sistema
-RUN apk update && apk add --no-cache bash ffmpeg tzdata openssl git
+WORKDIR /app
 
-# Define timezone
-ENV TZ=America/Sao_Paulo
-ENV DOCKER_ENV=true
-
-WORKDIR /evolution
-
-# Copia package.json e package-lock.json
 COPY package*.json ./
-
-# Instala dependências
-RUN npm ci --silent
-
-# Copia todo o resto do projeto
+RUN npm install
 COPY . .
+RUN npm run build
 
-# Garante que os scripts tenham permissão de execução
-RUN chmod +x ./Docker/scripts/* && dos2unix ./Docker/scripts/*
+# Servir com Nginx
+FROM nginx:alpine
 
-# Expõe porta
+COPY --from=build /app/build /usr/share/nginx/html
+
 EXPOSE 8080
 
-# Comando principal
-ENTRYPOINT ["/bin/bash", "-c", ". ./Docker/scripts/deploy_database.sh && npx tsx ./src/main.ts"]
+CMD ["nginx", "-g", "daemon off;"]
