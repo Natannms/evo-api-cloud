@@ -59,4 +59,4 @@ COPY --from=builder /evolution/runWithProvider.js ./runWithProvider.js
 EXPOSE 8080
 
 # Usa build já pronto
-ENTRYPOINT ["/bin/bash", "-c", ". ./Docker/scripts/deploy_database.sh && npm run start:prod" ]
+ENTRYPOINT ["/bin/bash", "-c", ". ./Docker/scripts/deploy_database.sh && npm run start" ]
