@@ -1,48 +1,52 @@
 FROM node:20-alpine AS builder
 
 RUN apk update && \
-    apk add --no-cache git ffmpeg wget curl bash openssl
-
-LABEL version="2.3.1" description="Api to control whatsapp features through http requests." 
-LABEL maintainer="Davidson Gomes" git="https://github.com/DavidsonGomes"
-LABEL contact="contato@evolution-api.com"
+    apk add --no-cache git ffmpeg wget curl bash openssl dos2unix
 
 WORKDIR /evolution
 
-COPY ./package*.json ./
-COPY ./tsconfig.json ./
-COPY ./tsup.config.ts ./
+# Copia configs básicas
+COPY package*.json ./
+COPY tsconfig.json ./
+COPY tsup.config.ts ./
 
+# Instala dependências
 RUN npm ci --silent
 
-COPY ./src ./src
-COPY ./public ./public
-COPY ./prisma ./prisma
-COPY ./manager ./manager
-COPY ./.env.example ./.env
-COPY ./runWithProvider.js ./
+# Copia o código-fonte
+COPY src ./src
+COPY public ./public
+COPY prisma ./prisma
+COPY manager ./manager
+COPY .env.example ./.env
+COPY runWithProvider.js ./
+COPY Docker ./Docker
 
-COPY ./Docker ./Docker
-
+# Ajusta scripts
 RUN chmod +x ./Docker/scripts/* && dos2unix ./Docker/scripts/*
 
+# Gera código do Prisma
 RUN ./Docker/scripts/generate_database.sh
 
+# Compila código para dist/
 RUN npm run build
 
+# -------------------------
+# Imagem final
+# -------------------------
 FROM node:20-alpine AS final
 
 RUN apk update && \
-    apk add tzdata ffmpeg bash openssl
+    apk add --no-cache tzdata ffmpeg bash openssl
 
 ENV TZ=America/Sao_Paulo
 ENV DOCKER_ENV=true
 
 WORKDIR /evolution
 
+# Copia apenas o necessário
 COPY --from=builder /evolution/package.json ./package.json
 COPY --from=builder /evolution/package-lock.json ./package-lock.json
-
 COPY --from=builder /evolution/node_modules ./node_modules
 COPY --from=builder /evolution/dist ./dist
 COPY --from=builder /evolution/prisma ./prisma
@@ -51,11 +55,8 @@ COPY --from=builder /evolution/public ./public
 COPY --from=builder /evolution/.env ./.env
 COPY --from=builder /evolution/Docker ./Docker
 COPY --from=builder /evolution/runWithProvider.js ./runWithProvider.js
-COPY --from=builder /evolution/tsup.config.ts ./tsup.config.ts
-COPY --from=builder /evolution/src ./src
-
-ENV DOCKER_ENV=true
 
 EXPOSE 8080
 
-ENTRYPOINT ["/bin/bash", "-c", ". ./Docker/scripts/deploy_database.sh && npm run start" ]
+# Usa build já pronto
+ENTRYPOINT ["/bin/bash", "-c", ". ./Docker/scripts/deploy_database.sh && npm run start:prod" ]
