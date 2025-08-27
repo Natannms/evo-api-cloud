@@ -36,7 +36,6 @@ RUN npm run build
 # Remove devDependencies
 RUN npm prune --omit=dev
 
-
 ##############################
 # Runtime stage
 ##############################
@@ -44,23 +43,23 @@ FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# ✅ Prisma precisa de OpenSSL 3 em runtime (Debian bookworm)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 openssl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# (Opcional) diretório efêmero usado por alguns exemplos
-RUN mkdir -p /evolution/instances && chown -R node:node /evolution
+# 1) Copie artefatos já com owner 'node'
+COPY --chown=node:node --from=build /app /app
 
-# Artefatos do build
-COPY --from=build /app /app
+# 2) Garanta que /app/instances é gravável pelo usuário 'node'
+#    (se a pasta não existir, cria; se existir, reatribui e libera escrita)
+RUN mkdir -p /app/instances /evolution/instances && \
+    chown -R node:node /app/instances /evolution/instances && \
+    chmod -R u+rwX,g+rwX /app/instances /evolution/instances
 
+# 3) Agora sim, troque o usuário
 USER node
 
-# Cloud Run publica $PORT; Evolution lê SERVER_PORT (default 8080)
 EXPOSE 8080
-
-# Healthcheck simples (ajuste a rota caso tenha /health)
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 \
   CMD node -e "require('http').get(`http://127.0.0.1:${process.env.PORT||8080}/health`,res=>process.exit(res.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
